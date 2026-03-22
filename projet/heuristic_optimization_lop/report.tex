@@ -1,0 +1,105 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+
+\title{\textbf{Heuristic Optimization: Linear Ordering Problem (LOP)}}
+\author{Author Name}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents the implementation, optimization, and statistical analysis of local search methods applied to the Linear Ordering Problem (LOP). Twelve algorithmic variants, combining two initialization methods, three neighborhood structures, and two move selection rules, were systematically evaluated. The use of incremental updates (delta-evaluations) ensures the temporal scalability of the approach. The statistical analysis demonstrates the superiority of the Chenery and Watanabe heuristic coupled with the \textit{Insert} neighborhood under the \textit{First-Improvement} rule.
+\end{abstract}
+
+\section{Introduction and Problem Description}
+The \textit{Linear Ordering Problem} (LOP) is a classic NP-hard combinatorial optimization problem. It consists of finding a simultaneous permutation of the rows and columns of a square weight matrix in order to maximize the sum of the elements located above the main diagonal.
+
+Formally, given an $n \times n$ matrix $C$, the objective is to find a permutation $\pi$ of the indices $\{1, \dots, n\}$ that maximizes the objective function:
+\begin{equation}
+f(\pi) = \sum_{i=1}^{n-1} \sum_{j=i+1}^{n} C_{\pi(i)\pi(j)}
+\end{equation}
+
+\section{Methodology and Implementation (Q1.1)}
+
+\subsection{Initial Solution Generation}
+Two methods were implemented to generate the starting solution:
+\begin{enumerate}
+    \item \textbf{Random Picking:} Generation of a uniformly random permutation. This serves as the baseline.
+    \item \textbf{Chenery and Watanabe (CW):} A greedy heuristic that ranks indices based on the ratio of their outgoing weights to their incoming weights. It effectively exploits the asymmetric structure of the matrix.
+\end{enumerate}
+
+\subsection{Neighborhood Structures and Algorithmic Speed-ups}
+Evaluating a full permutation $\pi$ requires $\mathcal{O}(n^2)$ operations. To ensure the viability and efficiency of the local search, the neighborhoods rely on delta-evaluations (incremental updates) that exclusively compute the cost variation $\Delta f$ induced by a move. A move is accepted if $\Delta f > 0$.
+
+\subsubsection{Transpose Neighborhood}
+Swapping two adjacent elements at positions $i$ and $i+1$. The impact is strictly limited to their relative contribution, as the order of all other elements remains unchanged. The evaluation complexity drops to $\mathcal{O}(1)$:
+\begin{equation}
+\Delta f = C_{\pi(i+1)\pi(i)} - C_{\pi(i)\pi(i+1)}
+\end{equation}
+
+\subsubsection{Exchange Neighborhood}
+Swapping two arbitrary elements at positions $i$ and $j$ (with $i < j$). The perturbation only affects the relationships between the swapped elements and the intermediate elements $k$ (where $i < k < j$). The evaluation complexity is reduced to $\mathcal{O}(n)$:
+\begin{equation}
+\Delta f = C_{\pi(j)\pi(i)} - C_{\pi(i)\pi(j)} + \sum_{k=i+1}^{j-1} \left( C_{\pi(j)\pi(k)} + C_{\pi(k)\pi(i)} - C_{\pi(i)\pi(k)} - C_{\pi(k)\pi(j)} \right)
+\end{equation}
+
+\subsubsection{Insert Neighborhood}
+Extracting an element at position $i$ and reinserting it at position $j$. This operation causes a unitary shift of the sub-block of elements located between $i$ and $j$. Only the interactions between the moved element and the shifted sub-block are recalculated, resulting in an $\mathcal{O}(n)$ complexity.
+
+\subsection{Pivot Rules}
+Each neighborhood was evaluated using two move selection strategies:
+\begin{itemize}
+    \item \textbf{First-Improvement:} Accepts the first improving move encountered during the neighborhood exploration.
+    \item \textbf{Best-Improvement:} Explores the entire neighborhood and applies the move that maximizes $\Delta f$.
+\end{itemize}
+
+\section{Results and Statistical Analysis}
+
+Table \ref{tab:results} summarizes the average percentage deviation from the best-known solutions and the cumulative execution time across all tested instances.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llcc}
+\toprule
+\textbf{Initialization} & \textbf{Neighborhood (Pivot)} & \textbf{Average Deviation (\%)} & \textbf{Total Time (s)} \\
+\midrule
+CW & Insert (First) & 1.69 & 109.59 \\
+CW & Insert (Best) & 1.84 & 26.07 \\
+CW & Exchange (First) & 2.41 & 145.19 \\
+CW & Exchange (Best) & 2.96 & 23.51 \\
+CW & Transpose (Best) & 15.73 & 0.00 \\
+CW & Transpose (First) & 15.86 & 0.00 \\
+\midrule
+Random & Insert (First) & 2.02 & 148.65 \\
+Random & Insert (Best) & 2.30 & 29.83 \\
+Random & Exchange (First) & 2.82 & 174.60 \\
+Random & Exchange (Best) & 3.60 & 26.69 \\
+Random & Transpose (Best) & 34.47 & 0.00 \\
+Random & Transpose (First) & 34.61 & 0.00 \\
+\bottomrule
+\end{tabular}
+\caption{Performance of the 12 local search algorithms.}
+\label{tab:results}
+\end{table}
+
+\subsection{Interpretation}
+To validate these observations, paired Student's t-tests and Wilcoxon signed-rank tests were applied (significance level $\alpha = 0.05$).
+
+\paragraph{Impact of Initialization:} 
+The CW heuristic systematically outperforms random initialization. The paired Wilcoxon test firmly rejects the null hypothesis ($p$-value $< 2.2 \times 10^{-16}$). CW initialization yields an average error reduction of approximately 6.55\% while accelerating the convergence of the local search.
+
+\paragraph{Impact of Neighborhood and Pivot Rule:} 
+The \textit{Insert} neighborhood produces the highest quality solutions. The paired Wilcoxon test comparing \textit{Insert\_First} and \textit{Insert\_Best} using CW initialization shows a statistically significant difference ($p$-value $= 0.0006$). \textit{First-Improvement} generates better final solutions (1.69\% average deviation vs. 1.84\%) but incurs a computational cost roughly 4 times higher. This demonstrates that \textit{First-Improvement} follows a denser optimization trajectory, applying a larger number of improving moves before reaching a local optimum.
+
+\end{document}
